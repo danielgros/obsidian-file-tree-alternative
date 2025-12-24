@@ -2,12 +2,14 @@ import FileTreeAlternativePlugin from './main';
 import { PluginSettingTab, Setting, App, Notice } from 'obsidian';
 import { LocalStorageHandler } from '@ozntel/local-storage-handler';
 import { eventTypes } from 'utils/types';
+import { FolderSuggestionModal } from './modals';
 
 type FolderIcon = 'default' | 'box-folder' | 'icomoon' | 'typicon' | 'circle-gg';
 export type SortType = 'name' | 'last-update' | 'created' | 'file-size';
 export type FolderSortType = 'name' | 'item-number';
 export type DeleteFileOption = 'trash' | 'permanent' | 'system-trash';
 export type EvernoteViewOption = 'Disabled' | 'Horizontal' | 'Vertical';
+export type StartupFolderBehavior = 'remember' | 'specific';
 
 export interface FileTreeAlternativePluginSettings {
     openViewOnStart: boolean;
@@ -38,6 +40,11 @@ export interface FileTreeAlternativePluginSettings {
     deleteFileOption: DeleteFileOption;
     showFileNameAsFullPath: boolean;
     bookmarksEvents: boolean;
+    startupFolderBehavior: StartupFolderBehavior;
+    startupSpecificFolder: string;
+    startupFocusedFolderBehavior: StartupFolderBehavior;
+    startupSpecificFocusedFolder: string;
+    rememberOpenFolders: boolean;
 }
 
 export const DEFAULT_SETTINGS: FileTreeAlternativePluginSettings = {
@@ -69,6 +76,11 @@ export const DEFAULT_SETTINGS: FileTreeAlternativePluginSettings = {
     deleteFileOption: 'trash',
     showFileNameAsFullPath: false,
     bookmarksEvents: false,
+    startupFolderBehavior: 'remember',
+    startupSpecificFolder: '',
+    startupFocusedFolderBehavior: 'remember',
+    startupSpecificFocusedFolder: '',
+    rememberOpenFolders: true,
 };
 
 export class FileTreeAlternativePluginSettingsTab extends PluginSettingTab {
@@ -123,6 +135,55 @@ export class FileTreeAlternativePluginSettingsTab extends PluginSettingTab {
             });
 
         new Setting(containerEl)
+            .setName('Startup Folder Behavior')
+            .setDesc('Choose how the plugin should select the initial folder when Obsidian starts (only applies to Horizontal/Vertical Evernote views).')
+            .addDropdown((dropdown) => {
+                dropdown
+                    .addOption('remember', 'Remember Last Active Folder')
+                    .addOption('specific', 'Use Specific Folder')
+                    .setValue(this.plugin.settings.startupFolderBehavior)
+                    .onChange(async (value: StartupFolderBehavior) => {
+                        this.plugin.settings.startupFolderBehavior = value;
+                        await this.plugin.saveSettings();
+                        this.display(); // Refresh to show/hide folder selector
+                    });
+            });
+
+        // Only show the folder selector if "specific" is selected
+        if (this.plugin.settings.startupFolderBehavior === 'specific') {
+            new Setting(containerEl)
+                .setName('Startup Folder')
+                .setDesc(
+                    this.plugin.settings.startupSpecificFolder
+                        ? `Selected folder: ${this.plugin.settings.startupSpecificFolder}`
+                        : 'Click to select a folder to use on startup'
+                )
+                .addButton((button) => {
+                    button
+                        .setButtonText('Select Folder')
+                        .setCta()
+                        .onClick(() => {
+                            new FolderSuggestionModal(this.app, async (folder) => {
+                                this.plugin.settings.startupSpecificFolder = folder.path;
+                                await this.plugin.saveSettings();
+                                this.display(); // Refresh to update description
+                                new Notice(`Startup folder set to: ${folder.path}`);
+                            }).open();
+                        });
+                })
+                .addButton((button) => {
+                    button
+                        .setButtonText('Clear')
+                        .onClick(async () => {
+                            this.plugin.settings.startupSpecificFolder = '';
+                            await this.plugin.saveSettings();
+                            this.display(); // Refresh to update description
+                            new Notice('Startup folder cleared');
+                        });
+                });
+        }
+
+        new Setting(containerEl)
             .setName('Ribbon Icon')
             .setDesc('Turn on if you want Ribbon Icon for activating the File Tree.')
             .addToggle((toggle) =>
@@ -165,6 +226,67 @@ export class FileTreeAlternativePluginSettingsTab extends PluginSettingTab {
         /* ------------- Folder Pane Settings ------------- */
 
         containerEl.createEl('h2', { text: 'Folder Pane Settings' });
+
+        new Setting(containerEl)
+            .setName('Remember Open Folders on Startup')
+            .setDesc('When enabled, folders that were expanded will remain open when you restart Obsidian. When disabled, all folders start collapsed.')
+            .addToggle((toggle) => {
+                toggle
+                    .setValue(this.plugin.settings.rememberOpenFolders)
+                    .onChange(async (value) => {
+                        this.plugin.settings.rememberOpenFolders = value;
+                        await this.plugin.saveSettings();
+                    });
+            });
+
+        new Setting(containerEl)
+            .setName('Startup Focused Folder Behavior')
+            .setDesc('Choose which folder the file tree should focus on when Obsidian starts.')
+            .addDropdown((dropdown) => {
+                dropdown
+                    .addOption('remember', 'Remember Last Focused Folder')
+                    .addOption('specific', 'Use Specific Folder')
+                    .setValue(this.plugin.settings.startupFocusedFolderBehavior)
+                    .onChange(async (value: StartupFolderBehavior) => {
+                        this.plugin.settings.startupFocusedFolderBehavior = value;
+                        await this.plugin.saveSettings();
+                        this.display(); // Refresh to show/hide folder selector
+                    });
+            });
+
+        // Only show the focused folder selector if "specific" is selected
+        if (this.plugin.settings.startupFocusedFolderBehavior === 'specific') {
+            new Setting(containerEl)
+                .setName('Startup Focused Folder')
+                .setDesc(
+                    this.plugin.settings.startupSpecificFocusedFolder
+                        ? `Selected folder: ${this.plugin.settings.startupSpecificFocusedFolder}`
+                        : 'Click to select a folder to focus on at startup'
+                )
+                .addButton((button) => {
+                    button
+                        .setButtonText('Select Folder')
+                        .setCta()
+                        .onClick(() => {
+                            new FolderSuggestionModal(this.app, async (folder) => {
+                                this.plugin.settings.startupSpecificFocusedFolder = folder.path;
+                                await this.plugin.saveSettings();
+                                this.display(); // Refresh to update description
+                                new Notice(`Startup focused folder set to: ${folder.path}`);
+                            }).open();
+                        });
+                })
+                .addButton((button) => {
+                    button
+                        .setButtonText('Clear')
+                        .onClick(async () => {
+                            this.plugin.settings.startupSpecificFocusedFolder = '';
+                            await this.plugin.saveSettings();
+                            this.display(); // Refresh to update description
+                            new Notice('Startup focused folder cleared');
+                        });
+                });
+        }
 
         new Setting(containerEl)
             .setName('Folder Icons')

@@ -215,3 +215,26 @@ function getAllFoldersInVault(app: App): TFolder[] {
     recursiveFx(rootFolder);
     return folders;
 }
+
+export class FolderSuggestionModal extends FuzzySuggestModal<TFolder> {
+    app: App;
+    onSelectFolder: (folder: TFolder) => void;
+
+    constructor(app: App, onSelectFolder: (folder: TFolder) => void) {
+        super(app);
+        this.app = app;
+        this.onSelectFolder = onSelectFolder;
+    }
+
+    getItemText(item: TFolder): string {
+        return item.path === '/' ? '/ (Root)' : item.path;
+    }
+
+    getItems(): TFolder[] {
+        return getAllFoldersInVault(this.app);
+    }
+
+    onChooseItem(item: TFolder, evt: MouseEvent | KeyboardEvent) {
+        this.onSelectFolder(item);
+    }
+}

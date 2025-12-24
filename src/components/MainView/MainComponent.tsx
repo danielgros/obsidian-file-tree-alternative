@@ -51,6 +51,17 @@ export default function MainTreeComponent(props: MainTreeComponentProps) {
 
     const setInitialActiveFolderPath = () => {
         if (['Horizontal', 'Vertical'].includes(plugin.settings.evernoteView)) {
+            // Check the startup folder behavior setting
+            if (plugin.settings.startupFolderBehavior === 'specific' && plugin.settings.startupSpecificFolder) {
+                // Use the specific folder if set
+                let folder = plugin.app.vault.getAbstractFileByPath(plugin.settings.startupSpecificFolder);
+                if (folder && folder instanceof TFolder) {
+                    setActiveFolderPath(folder.path);
+                    return;
+                }
+            }
+            
+            // Default to remembering the previous active folder
             let previousActiveFolder = localStorage.getItem(plugin.keys.activeFolderPathKey);
             if (previousActiveFolder) {
                 let folder = plugin.app.vault.getAbstractFileByPath(previousActiveFolder);
@@ -126,6 +137,17 @@ export default function MainTreeComponent(props: MainTreeComponentProps) {
     }, [focusedFolder, excludedFolders]);
 
     const setInitialFocusedFolder = () => {
+        // Check the startup focused folder behavior setting
+        if (plugin.settings.startupFocusedFolderBehavior === 'specific' && plugin.settings.startupSpecificFocusedFolder) {
+            // Use the specific focused folder if set
+            let folder = plugin.app.vault.getAbstractFileByPath(plugin.settings.startupSpecificFocusedFolder);
+            if (folder && folder instanceof TFolder) {
+                setFocusedFolder(folder);
+                return;
+            }
+        }
+        
+        // Default to remembering the previous focused folder
         let localFocusedFolder = localStorage.getItem(plugin.keys.focusedFolder);
         if (localFocusedFolder) {
             let folder = plugin.app.vault.getAbstractFileByPath(localFocusedFolder);
@@ -134,6 +156,8 @@ export default function MainTreeComponent(props: MainTreeComponentProps) {
                 return;
             }
         }
+        
+        // Fall back to root folder
         setFocusedFolder(plugin.app.vault.getRoot());
     };
 
@@ -176,6 +200,12 @@ export default function MainTreeComponent(props: MainTreeComponentProps) {
     // Load The String List and Set Open Folders State
     function getOpenFoldersFromSettings(): string[] {
         let openFolders: string[] = [];
+        
+        // Check if user wants to remember open folders
+        if (!plugin.settings.rememberOpenFolders) {
+            return openFolders; // Return empty array to start with all folders closed
+        }
+        
         let localStorageOpenFolders = localStorage.getItem(plugin.keys.openFoldersKey);
         if (localStorageOpenFolders) {
             localStorageOpenFolders = JSON.parse(localStorageOpenFolders);
